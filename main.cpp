@@ -1,6 +1,5 @@
 #include <stdio.h>
-#include "def.h"
-#include "env/comm_def.h"
+#include "env/comm_message.h"
 
 int main(int argc, char **argv)
 {
@@ -12,6 +11,11 @@ int main(int argc, char **argv)
 
     // Print off a hello world message
     printf("Hello world from rank %d out of %d\n", NODE_RANK, WORLD_SIZE);
+
+    if(NODE_RANK == 0){
+        DB_STATUS ret = BuildInitMessage();
+        printf("Master: %d", ret);
+    }    
 
     // Finalize the MPI environment.
     MPI_Finalize();

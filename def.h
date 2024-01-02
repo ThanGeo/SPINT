@@ -1,9 +1,11 @@
 #ifndef DEF_H
 #define DEF_H
 
-typedef enum Status{
+#include <mpi.h>
+
+typedef enum DB_STATUS{
     DB_OK = 0,
 
-}Status;
+}DB_STATUS;
 
 #endif
