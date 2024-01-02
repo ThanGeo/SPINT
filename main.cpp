@@ -1,5 +1,6 @@
 #include <stdio.h>
-#include "env/comm.h"
+#include "def.h"
+#include "env/comm_def.h"
 
 int main(int argc, char **argv)
 {
