@@ -3,8 +3,11 @@
 
 #include <mpi.h>
 
+#define DB_BASE 10000
+
 typedef enum DB_STATUS{
-    DB_OK = 0,
+    DB_OK = DB_BASE + 0,
+    DB_DIR_ERROR = DB_BASE + 10,
 
 }DB_STATUS;
 

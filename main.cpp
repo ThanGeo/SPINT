@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include "env/comm_message.h"
+#include "env/disk_local_index.h"
 
 int main(int argc, char **argv)
 {
@@ -9,13 +10,24 @@ int main(int argc, char **argv)
 	MPI_Comm_size(MPI_COMM_WORLD, &WORLD_SIZE);
 	MPI_Comm_rank(MPI_COMM_WORLD, &NODE_RANK);
 
-    // Print off a hello world message
-    printf("Hello world from rank %d out of %d\n", NODE_RANK, WORLD_SIZE);
+    // printf("Hi from node %d\n", NODE_RANK);
+    
+    std::string pathToFileR(argv[1]);
+    std::string pathToFileS(argv[2]);
 
-    if(NODE_RANK == 0){
-        DB_STATUS ret = BuildInitMessage();
-        printf("Master: %d", ret);
-    }    
+    DiskIndexT diskIndex;
+    
+
+    DB_STATUS ret = SystemInit(DISK_SINGLE_MACHINE, &diskIndex);
+    if (ret != DB_OK) {       
+        MPI_Finalize();
+        exit(-1);
+    }
+
+
+
+
+
 
     // Finalize the MPI environment.
     MPI_Finalize();

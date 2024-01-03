@@ -1,5 +1,5 @@
 CC=mpicxx.mpich 
-CFLAGS= -g -fopenmp
+CFLAGS= -O3 -g -fopenmp
 
 SOURCES = $(wildcard env/*.cpp)
 OBJECTS = $(SOURCES:.cpp=.o)

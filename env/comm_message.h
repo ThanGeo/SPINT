@@ -1,10 +1,13 @@
 #ifndef COMM_MESSAGE_H
 #define COMM_MESSAGE_H
 
-#include "../def.h"
-#include "comm_def.h"
+#include <vector>
 
-DB_STATUS BuildInitMessage();
+#include "comm_def.h"
+#include "disk_local_index.h"
+
+
+DB_STATUS SystemInit(DiskIndexTypeE diskType, DiskIndexT *diskIndex);
 
 
 #endif

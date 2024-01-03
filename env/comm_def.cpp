@@ -1,4 +1,5 @@
 #include "comm_def.h"
+#include <vector>
 
 int32_t WORLD_SIZE;
 int32_t NODE_RANK;
@@ -7,6 +8,6 @@ int32_t NODE_RANK;
 struct CommMessage
 {
     CommMessageTypeE type;
-    char* data;
+    std::vector<void*> data;
 
-}CommMessageT;
+};
