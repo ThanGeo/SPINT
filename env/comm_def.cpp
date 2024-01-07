@@ -1,13 +1,11 @@
 #include "comm_def.h"
-#include <vector>
 
-int32_t WORLD_SIZE;
-int32_t NODE_RANK;
+PARTITION_ID g_world_size;
+WORKER_ID g_node_rank;
 
-/* general message struct */
-struct CommMessage
-{
-    CommMessageTypeE type;
-    std::vector<void*> data;
+DB_STATUS ListenForMessages() {
 
-};
+
+
+    return ERR_OK;
+}

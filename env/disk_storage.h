@@ -1,5 +1,5 @@
-#ifndef DISK_INDEX
-#define DISK_INDEX
+#ifndef DISK_INDEX_H
+#define DISK_INDEX_H
 
 #include <sys/stat.h>
 #include <dirent.h>

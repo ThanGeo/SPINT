@@ -1,13 +1,16 @@
 CC=mpicxx.mpich 
-CFLAGS= -O3 -g -fopenmp
+CFLAGS= -std=c++17 -O3 -fopenmp
 
-SOURCES = $(wildcard env/*.cpp)
+SOURCES =  $(wildcard dataset_info/*.cpp) $(wildcard env/*.cpp) $(wildcard query/*.cpp)
 OBJECTS = $(SOURCES:.cpp=.o)
 BUILD = $(wildcard build/*.o)
 
+debug: CFLAGS += -g
+debug: all
+
 all: mainapp
 
-mainapp: $(OBJECTS) main.o
+mainapp: $(OBJECTS) def.o main.o
 
 link:
 	$(CC) $(CFLAGS) $(BUILD) -o program
@@ -16,5 +19,6 @@ link:
 	$(CC) $(CFLAGS) -c $^
 
 clean:
-	rm build/*.o 
+	rm build/*.o
 	rm program
+

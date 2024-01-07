@@ -2,13 +2,14 @@
 #define COMM_H
 
 #include <mpi.h>
-#include <stdio.h>
 #include "../def.h"
+#include "../query/query.h"
+#include "../query/approximations.h"
 
 #define MASTER_RANK 0
 
-extern int32_t WORLD_SIZE;
-extern int32_t NODE_RANK;
+extern PARTITION_ID g_world_size;
+extern WORKER_ID g_node_rank;
 
 /* message type */
 typedef enum CommMessageType
@@ -18,7 +19,10 @@ typedef enum CommMessageType
     COMM_ACK,
     COMM_FAIL,
     /* data partitioning */
-    COMM_DATA_PARTITIONING = 1000,
+    COMM_DATA_PARTITIONING_BEGIN = 1000,
+    COMM_DATA_PARTITIONING_SETUP = COMM_DATA_PARTITIONING_BEGIN,
+    COMM_DATA_PARTITIONING_INFO,
+    COMM_DATA_PARTITIONING_END,
     /* query specific */
     COMM_QUERY_INIT = 2000,
     COMM_QUERY_BEGIN,
@@ -36,10 +40,30 @@ typedef enum CommMessageTag
     COMM_TAG_SETUP = 10,
 }CommMessageTagE;
 
-/* general message struct */
-typedef struct CommMessage CommMessageT;
+/* execution specified operations */
+typedef struct UserConfiguration 
+{
+    // partitioning
+    bool partitionFlag = false;
+    uint32_t numberOfPartitions = 1000;
+    uint32_t batchSize = 1000;
+    // query
+    bool queryFlag;
+    QueryTypeE queryType;
+    // refinement
+    bool refinementFlag = false;
+    // approximation
+    bool approximationFlag = false;
+    ApproxTypeE approximationType;
+    /* todo: parameters for approximations */
 
+    // dataset 
+    uint32_t datasetCount;  // 2 for joins, 1 otherwise
+    std::vector<std::string> datasetPaths;
+} UserConfigurationT;
 
+/* main listening function */
+extern DB_STATUS ListenForMessages();
 
 
 #endif

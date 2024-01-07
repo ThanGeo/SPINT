@@ -1,6 +1,6 @@
 #include <string>
 
-#include "disk_local_index.h"
+#include "disk_storage.h"
 #include "comm_def.h"   //todo: remove when transitioning to cluster dev
 
 DB_STATUS CheckDirectory(std::string dirPath){
@@ -12,48 +12,48 @@ DB_STATUS CheckDirectory(std::string dirPath){
         /* Directory does not exist. Create it */
         int ret = mkdir(dirPath.c_str(), 0777);
         if (ret != 0) {
-            printf("Error %d: unknown mkdir error.\n", DB_DIR_ERROR);
-            return DB_DIR_ERROR;
+            printf("Error %d: unknown mkdir error.\n", ERR_DIR);
+            return ERR_DIR;
         }
     }else{
         /* opendir() failed for some other reason. */
-        printf("Error %d: unknown opendir error.\n", DB_DIR_ERROR);
-        return DB_DIR_ERROR;
+        printf("Error %d: unknown opendir error.\n", ERR_DIR);
+        return ERR_DIR;
     }
 
-    return DB_OK;
+    return ERR_OK;
 }  
 
 DB_STATUS InitializeSingleMachineDiskIndex(DiskIndexT *diskIndex){
     // check main directory
     DB_STATUS ret = CheckDirectory(diskIndex->mainNodeDataDir);
-    if(ret != DB_OK){
+    if(ret != ERR_OK){
         return ret;
     }
 
     // check spatial data directory
     ret = CheckDirectory(diskIndex->spatialDir);
-    if(ret != DB_OK){
+    if(ret != ERR_OK){
         return ret;
     }
 
     // check approximation main directory
     ret = CheckDirectory(diskIndex->approximationDir);
-    if(ret != DB_OK){
+    if(ret != ERR_OK){
         return ret;
     }
     // april directory
     ret = CheckDirectory(diskIndex->aprilDir);
-    if(ret != DB_OK){
+    if(ret != ERR_OK){
         return ret;
     }
     // ri directory
     ret = CheckDirectory(diskIndex->riDir);
-    if(ret != DB_OK){
+    if(ret != ERR_OK){
         return ret;
     }
 
-    return DB_OK;
+    return ERR_OK;
 }
 
 DB_STATUS InitializeClusterDiskIndex(uint nodeRank, DiskIndexT *diskIndex){
@@ -76,31 +76,31 @@ DB_STATUS InitializeClusterDiskIndex(uint nodeRank, DiskIndexT *diskIndex){
 
     // check main directory
     DB_STATUS ret = CheckDirectory(diskIndex->mainNodeDataDir);
-    if(ret != DB_OK){
+    if(ret != ERR_OK){
         return ret;
     }
 
     // check spatial data directory
     ret = CheckDirectory(diskIndex->spatialDir);
-    if(ret != DB_OK){
+    if(ret != ERR_OK){
         return ret;
     }
 
     // check approximation main directory
     ret = CheckDirectory(diskIndex->approximationDir);
-    if(ret != DB_OK){
+    if(ret != ERR_OK){
         return ret;
     }
     // april directory
     ret = CheckDirectory(diskIndex->aprilDir);
-    if(ret != DB_OK){
+    if(ret != ERR_OK){
         return ret;
     }
     // ri directory
     ret = CheckDirectory(diskIndex->riDir);
-    if(ret != DB_OK){
+    if(ret != ERR_OK){
         return ret;
     }
 
-    return DB_OK;
+    return ERR_OK;
 }
