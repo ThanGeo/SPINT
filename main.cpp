@@ -19,14 +19,13 @@ DB_STATUS PerformConfiguredOptions(UserConfigurationT *config){
             return ret;
         }
     }
-
-    // setup partitions
-    
     
     // Partition
     if (config->partitionFlag) {
+        g_global_index.partitionsPerDimension = config->numberOfPartitions;
+        g_local_index.partitionsPerDimension = config->numberOfPartitions;
         for (uint32_t i=0; i<g_global_index.datasetCount; i++) {
-            ret = PerformPartitioningBinaryFile(g_global_index.datasets[i], config->numberOfPartitions, config->batchSize);
+            ret = PerformPartitioningBinaryFile(g_global_index.datasets[i], config->batchSize);
             if (ret != ERR_OK) {
                 LOG_ERR("Error. Partitioning failed.", ERR_PARTITIONING);
                 return ret;

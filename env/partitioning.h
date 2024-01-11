@@ -12,6 +12,7 @@
 typedef struct GlobalIndex
 {
     WORKER_ID owner = MASTER_RANK;
+    uint32_t partitionsPerDimension;
     // active partitions (partitions that have at least one object)
     std::unordered_map<PARTITION_ID, PartitionT*> activePartitions;
     // map: partition id -> node id
@@ -26,15 +27,16 @@ typedef struct GlobalIndex
 // local to each worker node
 typedef struct LocalIndex
 {
+    uint32_t partitionsPerDimension;
     // partition -> its contents (object ID list)
     std::unordered_map<PARTITION_ID, std::vector<uint32_t>> partitionContentsMap;
 } LocalIndexT;
 
 extern inline WORKER_ID GetWorkerIDForPartitionID(PARTITION_ID partitionId);
 
-DB_STATUS GetPartitionFromGlobalIndex(PARTITION_ID &id, PartitionT *partition);
+DB_STATUS GetPartitionFromGlobalIndex(PARTITION_ID &id, PartitionT **partition);
 
-extern DB_STATUS PerformPartitioningBinaryFile(DatasetT *dataset, uint32_t numberOfPartitions, uint32_t batchSize);
+extern DB_STATUS PerformPartitioningBinaryFile(DatasetT *dataset, uint32_t batchSize);
 
 extern inline PARTITION_ID GetPartitionIDfromPartitionXY(uint32_t x, uint32_t y, uint32_t numberOfPartitions);
 

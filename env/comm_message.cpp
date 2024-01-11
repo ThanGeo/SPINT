@@ -65,6 +65,6 @@ DB_STATUS SendPolygonBatchMessage(std::vector<SpatialObjectT*> &batch, uint32_t 
 
     // send
     // TODO make the send
-
+    return ERR_FEATURE_TODO;
     return ERR_OK;
 }

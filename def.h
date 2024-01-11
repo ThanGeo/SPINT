@@ -101,4 +101,8 @@ typedef struct Partition
 } PartitionT;
 
 
+
+
+// PRINTERS
+extern void PrintPolygon(SpatialObjectT *polygon);
 #endif

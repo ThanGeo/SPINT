@@ -3,19 +3,19 @@
 GlobalIndexT g_global_index;
 LocalIndexT g_local_index;
 
-DB_STATUS AddPartitionToGlobalIndex(PartitionT* partition){
-    if (auto it = g_global_index.activePartitions.find(partition->id); it != g_global_index.activePartitions.end()){
+DB_STATUS AddPartitionToGlobalIndex(PartitionT **partition){
+    if (auto it = g_global_index.activePartitions.find((*partition)->id); it != g_global_index.activePartitions.end()){
         return ERR_DUPLICATE_PARTITION;
 	}
-    printf("added partition %d to index, with x = %d and y = %d\n", partition->id, partition->x, partition->y);
-    g_global_index.activePartitions[partition->id] = partition;
+    // printf("added partition %d to index, with x = %d and y = %d\n", (*partition)->id, (*partition)->x, (*partition)->y);
+    g_global_index.activePartitions[(*partition)->id] = *partition;
     return ERR_OK;
 }
 
-DB_STATUS GetPartitionFromGlobalIndex(PARTITION_ID &id, PartitionT *partition){
+DB_STATUS GetPartitionFromGlobalIndex(PARTITION_ID &id, PartitionT **partition){
     if (auto it = g_global_index.activePartitions.find(id); it != g_global_index.activePartitions.end()){
-		partition = it->second;
-        printf("Retrieved partition %d with x = %d and y = %d\n", partition->id, partition->x, partition->y);
+		*partition = it->second;
+        printf("Retrieved partition %d with x = %d and y = %d\n", (*partition)->id, (*partition)->x, (*partition)->y);
         return ERR_OK;
 	}
     return ERR_PARTITION_NOT_CREATED;
@@ -23,6 +23,59 @@ DB_STATUS GetPartitionFromGlobalIndex(PARTITION_ID &id, PartitionT *partition){
 
 WORKER_ID GetWorkerIDForPartitionID(PARTITION_ID partitionId){
     return partitionId % g_world_size;
+}
+
+PARTITION_ID GetPartitionIDfromPartitionXY(uint32_t x, uint32_t y, uint32_t numberOfPartitions){
+    return y * numberOfPartitions + x;
+}
+
+DB_STATUS GetPartitionIDfromPoint(PointT *point, DatasetT *dataset, uint32_t numberOfPartitions, PARTITION_ID &partitionId){
+    uint32_t partitionX = (point->x - dataset->mbr.minP.x) / (dataset->spanX / numberOfPartitions);
+    uint32_t partitionY = (point->y - dataset->mbr.minP.y) / (dataset->spanY / numberOfPartitions);
+    PARTITION_ID tempId = GetPartitionIDfromPartitionXY(partitionX, partitionY, numberOfPartitions);
+
+    // printf("Get partition with id %d and coords (%d,%d)\n",tempId,partitionX,partitionY);
+    if (tempId < 0) {
+        LOG_ERR("Partition id calculated to be less than zero.", ERR_PARTITIONING);
+        return ERR_PARTITIONING;
+    }
+    if (tempId > numberOfPartitions*numberOfPartitions -1) {
+        LOG_ERR("Partition id calculated to be larger than numberOfPartitions^2 -1", ERR_PARTITIONING);
+        return ERR_PARTITIONING;
+    }
+    partitionId = tempId;
+    return ERR_OK;
+}
+
+DB_STATUS GetPartitionForPoint(PointT *point, Dataset *dataset, PartitionT **partition){
+    uint32_t partitionId;
+    DB_STATUS ret = GetPartitionIDfromPoint(point, dataset, g_global_index.partitionsPerDimension, partitionId);
+    if (ret != ERR_OK) {
+        LOG_ERR("Getting min partition failed.", ret);
+        return ret;
+    }
+    // if it exists, return from global index
+    if (auto it = g_global_index.activePartitions.find(partitionId); it != g_global_index.activePartitions.end()){
+		*partition = it->second;
+        printf("Retrieved partition %d with x = %d and y = %d\n", (*partition)->id, (*partition)->x, (*partition)->y);
+        return ERR_OK;
+	}
+    // has to be created
+    PartitionT *tmpPartition = new PartitionT;
+    tmpPartition->id = partitionId;
+    tmpPartition->x = (point->x - dataset->mbr.minP.x) / (dataset->spanX / g_global_index.partitionsPerDimension);
+    tmpPartition->y = (point->y - dataset->mbr.minP.y) / (dataset->spanY / g_global_index.partitionsPerDimension);
+
+    // save in global index
+    ret = AddPartitionToGlobalIndex(&tmpPartition);
+    if (ret != ERR_OK) {
+        LOG_ERR("Failed to save partition to global index.", ret);
+        return ret;
+    }
+
+    // set return value
+    *partition = tmpPartition;
+    return ERR_OK;
 }
 
 static void ReadNextPolygonBinary(std::ifstream *fin, SpatialObjectT *polygon) {
@@ -60,81 +113,39 @@ static void ClearPolygonBatch(std::vector<SpatialObjectT*> &batch, uint32_t batc
     printf("***** Cleared batch *****\n");
 }
 
-PARTITION_ID GetPartitionIDfromPartitionXY(uint32_t x, uint32_t y, uint32_t numberOfPartitions){
-    return y * numberOfPartitions + x;
-}
 
-PARTITION_ID GetPartitionIDfromPoint(PointT *point, DatasetT *dataset, uint32_t numberOfPartitions){
-    uint32_t partitionX = (point->x - dataset->mbr.minP.x) / dataset->spanX;
-    uint32_t partitionY = (point->y - dataset->mbr.minP.y) / dataset->spanY;
-    return GetPartitionIDfromPartitionXY(partitionX, partitionY, numberOfPartitions);
-}
 
-void CreatePartitionFromPoint(PointT *point, DatasetT *dataset, uint32_t numberOfPartitions, PartitionT *partition) {
-    partition->x = (point->x - dataset->mbr.minP.x) / dataset->spanX;
-    partition->y = (point->y - dataset->mbr.minP.y) / dataset->spanY;
-    partition->id = GetPartitionIDfromPartitionXY(partition->x, partition->y, numberOfPartitions);
-}
-
-static DB_STATUS AssignPolygonToNodeBatches(DatasetT *dataset, SpatialObjectT* polygon, uint32_t numberOfPartitions,
+static DB_STATUS AssignPolygonToNodeBatches(DatasetT *dataset, SpatialObjectT* polygon,
             std::unordered_map<WORKER_ID, std::vector<SpatialObjectT*>> &batchPerWorker, uint32_t batchSize) {
-    printf("----- POLYGON %d ------\n", polygon->id);
-    PartitionT* minPartition = new PartitionT;
-    PartitionT* maxPartition = new PartitionT;
-
+    // printf("----- POLYGON %d ------\n", polygon->id);
+    // PrintPolygon(polygon);
+    PartitionT* minPartition = NULL;
+    PartitionT* maxPartition = NULL;
     // get min and max partitions in grid
-    uint32_t minPartitionID = GetPartitionIDfromPoint(&polygon->mbr.minP, dataset, numberOfPartitions);
-    uint32_t maxPartitionID = GetPartitionIDfromPoint(&polygon->mbr.maxP, dataset, numberOfPartitions);
+    DB_STATUS ret = GetPartitionForPoint(&polygon->mbr.minP, dataset, &minPartition);
+    if (ret != ERR_OK) {
+        LOG_ERR("Getting/Creating min partition failed.", ret);
+        return ret;
+    }
+    ret = GetPartitionForPoint(&polygon->mbr.maxP, dataset, &maxPartition);
+    if (ret != ERR_OK) {
+        LOG_ERR("Getting/Creatingmin partition failed.", ret);
+        return ret;
+    }
+
+    // printf("min partition id: %d, (x,y) = (%d,%d)\n", minPartition->id, minPartition->x, minPartition->y);
+    // printf("max partition id: %d, (x,y) = (%d,%d)\n", maxPartition->id, maxPartition->x, maxPartition->y);
     
-    // safety checks
-    if (minPartitionID < 0 || maxPartitionID < 0) {
-        LOG_ERR("Partition id calculated to be less than zero.", ERR_PARTITIONING);
-        return ERR_PARTITIONING;
-    }
-    if (minPartitionID > numberOfPartitions*numberOfPartitions -1 || maxPartitionID > numberOfPartitions*numberOfPartitions - 1) {
-        LOG_ERR("Partition id calculated to be larger than g_world_size-1.", ERR_PARTITIONING);
-        return ERR_PARTITIONING;
-    }
-    if (minPartitionID > maxPartitionID) {
-        LOG_ERR("Min partion id smaller than max partition id.", ERR_PARTITIONING);
-        return ERR_PARTITIONING;
-    }
-    printf("min and max partition ids: %d and %d\n", minPartitionID, maxPartitionID);
-
-    // check if it is active already, otherwise create it
-    DB_STATUS ret = GetPartitionFromGlobalIndex(minPartitionID, minPartition);
-    if (ret == ERR_PARTITION_NOT_CREATED) {
-        // create the partition and add it to the index
-        CreatePartitionFromPoint(&polygon->mbr.minP, dataset, numberOfPartitions, minPartition);
-        ret = AddPartitionToGlobalIndex(minPartition);
-        if (ret != ERR_OK) {
-            LOG_ERR("Adding min partition failed.", ret);
-            return ret;
-        }
-    }
-    ret = GetPartitionFromGlobalIndex(maxPartitionID, maxPartition);
-    if (ret == ERR_PARTITION_NOT_CREATED) {
-        // create the partition and add it to the index
-        CreatePartitionFromPoint(&polygon->mbr.maxP, dataset, numberOfPartitions, maxPartition);
-        ret = AddPartitionToGlobalIndex(maxPartition);
-        if (ret != ERR_OK) {
-            LOG_ERR("Adding max partition failed.", ret);
-            return ret;
-        }
-    }
-
     // flag workers that need to receive
     std::vector<bool> workersToSendPolygonTo;
     for (WORKER_ID i = 0; i<g_world_size; i++) {
         workersToSendPolygonTo.emplace_back(false);
     }
 
-    printf("looping from %d to %d and %d to %d\n", minPartition->x, maxPartition->x, minPartition->y, maxPartition->y);
-
     // loop all the partitions from min to max and flag the worker nodes that correspond to them
     for(uint32_t i = minPartition->x; i <= maxPartition->x; i++) {
         for(uint32_t j = minPartition->y; j <= maxPartition->y; j++) {
-            PARTITION_ID partitionId = GetPartitionIDfromPartitionXY(i, j, numberOfPartitions);
+            PARTITION_ID partitionId = GetPartitionIDfromPartitionXY(i, j, g_global_index.partitionsPerDimension);
             WORKER_ID workerId = GetWorkerIDForPartitionID(partitionId);
             workersToSendPolygonTo[workerId] = true;
         }
@@ -161,7 +172,7 @@ static DB_STATUS AssignPolygonToNodeBatches(DatasetT *dataset, SpatialObjectT* p
     return ERR_OK;
 }
 
-DB_STATUS PerformPartitioningBinaryFile(DatasetT *dataset, uint32_t numberOfPartitions, uint32_t maxbatchSize){
+DB_STATUS PerformPartitioningBinaryFile(DatasetT *dataset, uint32_t maxbatchSize){
     uint32_t lineCounter = 0;
     DB_STATUS ret = ERR_OK;
     
@@ -192,7 +203,7 @@ DB_STATUS PerformPartitioningBinaryFile(DatasetT *dataset, uint32_t numberOfPart
         ReadNextPolygonBinary(&fin, polygonPtr);
 
         // assign to appropriate batch (and send if it is filled)
-        ret = AssignPolygonToNodeBatches(dataset, polygonPtr, numberOfPartitions, batchPerWorker, maxbatchSize);
+        ret = AssignPolygonToNodeBatches(dataset, polygonPtr, batchPerWorker, maxbatchSize);
         if (ret != ERR_OK) {
             LOG_ERR("Error assigning polygon to node.", ERR_PARTITIONING);
             return ERR_PARTITIONING;
