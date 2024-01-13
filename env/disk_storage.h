@@ -25,4 +25,6 @@ extern DB_STATUS InitializeSingleMachineDiskIndex(DiskIndexT *diskIndex);
 
 extern DB_STATUS InitializeClusterDiskIndex(uint nodeRank, DiskIndexT *diskIndex);
 
+extern DB_STATUS SavePartitioningBatch();
+
 #endif

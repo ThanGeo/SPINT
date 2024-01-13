@@ -29,6 +29,7 @@ typedef enum DB_STATUS{
     ERR_DUPLICATE_PARTITION = DB_BASE + 202,
     // communication errors
     ERR_COMM_SEND_MESSAGE = DB_BASE + 300,
+    ERR_COMM_RECV_MESSAGE,
 
 }DB_STATUS;
 

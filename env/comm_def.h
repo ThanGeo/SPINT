@@ -12,17 +12,15 @@ extern PARTITION_ID g_world_size;
 extern WORKER_ID g_node_rank;
 
 /* message type */
-typedef enum CommMessageType
+typedef enum
 {
     /* system specific - I/O */
     COMM_SYSTEM_INIT = 0,
     COMM_ACK,
     COMM_FAIL,
     /* data partitioning */
-    COMM_DATA_PARTITIONING_BEGIN = 1000,
-    COMM_DATA_PARTITIONING_SETUP = COMM_DATA_PARTITIONING_BEGIN,
+    COMM_DATA_PARTITIONING_SETUP = 1000,
     COMM_DATA_PARTITIONING_INFO,
-    COMM_DATA_PARTITIONING_END,
     /* query specific */
     COMM_QUERY_INIT = 2000,
     COMM_QUERY_BEGIN,
@@ -31,13 +29,7 @@ typedef enum CommMessageType
     COMM_APPROX_CREATE = 3000,
     COMM_APPROX_DELETE,
 
-    COMM_FIN
-}CommMessageTypeE;
-
-typedef enum CommMessageTag
-{
-    COMM_TAG_EMPTY = 0,
-    COMM_TAG_SETUP = 10,
+    COMM_STOP_LISTENING = 10000,
 }CommMessageTagE;
 
 /* execution specified operations */
@@ -62,8 +54,6 @@ typedef struct UserConfiguration
     std::vector<std::string> datasetPaths;
 } UserConfigurationT;
 
-/* main listening function */
-extern DB_STATUS ListenForMessages();
 
 
 #endif

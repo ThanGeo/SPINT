@@ -12,15 +12,6 @@ DB_STATUS AddPartitionToGlobalIndex(PartitionT **partition){
     return ERR_OK;
 }
 
-DB_STATUS GetPartitionFromGlobalIndex(PARTITION_ID &id, PartitionT **partition){
-    if (auto it = g_global_index.activePartitions.find(id); it != g_global_index.activePartitions.end()){
-		*partition = it->second;
-        printf("Retrieved partition %d with x = %d and y = %d\n", (*partition)->id, (*partition)->x, (*partition)->y);
-        return ERR_OK;
-	}
-    return ERR_PARTITION_NOT_CREATED;
-}
-
 WORKER_ID GetWorkerIDForPartitionID(PARTITION_ID partitionId){
     return partitionId % g_world_size;
 }
@@ -57,7 +48,7 @@ DB_STATUS GetPartitionForPoint(PointT *point, Dataset *dataset, PartitionT **par
     // if it exists, return from global index
     if (auto it = g_global_index.activePartitions.find(partitionId); it != g_global_index.activePartitions.end()){
 		*partition = it->second;
-        printf("Retrieved partition %d with x = %d and y = %d\n", (*partition)->id, (*partition)->x, (*partition)->y);
+        // printf("Retrieved partition %d with x = %d and y = %d\n", (*partition)->id, (*partition)->x, (*partition)->y);
         return ERR_OK;
 	}
     // has to be created
@@ -78,70 +69,62 @@ DB_STATUS GetPartitionForPoint(PointT *point, Dataset *dataset, PartitionT **par
     return ERR_OK;
 }
 
-static void ReadNextPolygonBinary(std::ifstream *fin, SpatialObjectT *polygon) {
+static void ReadNextPolygonBinary(std::ifstream &fin, SpatialObjectT &polygon) {
     //read polygon id
-    fin->read((char*) &polygon->id, sizeof(uint32_t));
+    fin.read((char*) &polygon.id, sizeof(uint32_t));
     //read vertex count for polygon & reserve space
-    fin->read((char*) &polygon->vertexCount, sizeof(uint32_t));
-    polygon->vertices.reserve(polygon->vertexCount);
+    fin.read((char*) &polygon.vertexCount, sizeof(uint32_t));
+    polygon.vertices.reserve(polygon.vertexCount);
     // for MBR
-    polygon->mbr.minP.x = std::numeric_limits<int>::max();
-    polygon->mbr.minP.y = std::numeric_limits<int>::max();
-    polygon->mbr.maxP.x = -std::numeric_limits<int>::max();
-    polygon->mbr.maxP.y = -std::numeric_limits<int>::max();
+    polygon.mbr.minP.x = std::numeric_limits<int>::max();
+    polygon.mbr.minP.y = std::numeric_limits<int>::max();
+    polygon.mbr.maxP.x = -std::numeric_limits<int>::max();
+    polygon.mbr.maxP.y = -std::numeric_limits<int>::max();
     //read points polygon
-    for(int i=0; i<polygon->vertexCount; i++){
+    for(int i=0; i<polygon.vertexCount; i++){
         PointT point;
         //read x, y
-        fin->read((char*) &point.x, sizeof(double));
-        fin->read((char*) &point.y, sizeof(double));
+        fin.read((char*) &point.x, sizeof(double));
+        fin.read((char*) &point.y, sizeof(double));
         //store vertices
-        polygon->vertices.emplace_back(point); 
+        polygon.vertices.emplace_back(point); 
         // keep MBR
-        polygon->mbr.minP.x = std::min(point.x, polygon->mbr.minP.x);
-        polygon->mbr.minP.y = std::min(point.y, polygon->mbr.minP.y);
-        polygon->mbr.maxP.x = std::max(point.x, polygon->mbr.maxP.x);
-        polygon->mbr.maxP.y = std::max(point.y, polygon->mbr.maxP.y);
+        polygon.mbr.minP.x = std::min(point.x, polygon.mbr.minP.x);
+        polygon.mbr.minP.y = std::min(point.y, polygon.mbr.minP.y);
+        polygon.mbr.maxP.x = std::max(point.x, polygon.mbr.maxP.x);
+        polygon.mbr.maxP.y = std::max(point.y, polygon.mbr.maxP.y);
     }
 }
 
-static void ClearPolygonBatch(std::vector<SpatialObjectT*> &batch, uint32_t batchSize){
-    for (uint32_t i = 0; i<batchSize; i++) {
-        delete batch[i];
-    }
+static void ClearPolygonBatch(std::vector<SpatialObjectT> &batch, uint32_t batchSize){
     batch.clear();
-    printf("***** Cleared batch *****\n");
+    // printf("***** Cleared batch *****\n");
 }
 
 
 
-static DB_STATUS AssignPolygonToNodeBatches(DatasetT *dataset, SpatialObjectT* polygon,
-            std::unordered_map<WORKER_ID, std::vector<SpatialObjectT*>> &batchPerWorker, uint32_t batchSize) {
+static DB_STATUS AssignPolygonToNodeBatches(DatasetT *dataset, SpatialObjectT &polygon,
+            std::unordered_map<WORKER_ID, std::vector<SpatialObjectT>> &batchPerWorker, uint32_t batchSize) {
     // printf("----- POLYGON %d ------\n", polygon->id);
     // PrintPolygon(polygon);
     PartitionT* minPartition = NULL;
     PartitionT* maxPartition = NULL;
     // get min and max partitions in grid
-    DB_STATUS ret = GetPartitionForPoint(&polygon->mbr.minP, dataset, &minPartition);
+    DB_STATUS ret = GetPartitionForPoint(&polygon.mbr.minP, dataset, &minPartition);
     if (ret != ERR_OK) {
         LOG_ERR("Getting/Creating min partition failed.", ret);
         return ret;
     }
-    ret = GetPartitionForPoint(&polygon->mbr.maxP, dataset, &maxPartition);
+    ret = GetPartitionForPoint(&polygon.mbr.maxP, dataset, &maxPartition);
     if (ret != ERR_OK) {
         LOG_ERR("Getting/Creatingmin partition failed.", ret);
         return ret;
     }
-
-    // printf("min partition id: %d, (x,y) = (%d,%d)\n", minPartition->id, minPartition->x, minPartition->y);
-    // printf("max partition id: %d, (x,y) = (%d,%d)\n", maxPartition->id, maxPartition->x, maxPartition->y);
-    
     // flag workers that need to receive
     std::vector<bool> workersToSendPolygonTo;
     for (WORKER_ID i = 0; i<g_world_size; i++) {
         workersToSendPolygonTo.emplace_back(false);
     }
-
     // loop all the partitions from min to max and flag the worker nodes that correspond to them
     for(uint32_t i = minPartition->x; i <= maxPartition->x; i++) {
         for(uint32_t j = minPartition->y; j <= maxPartition->y; j++) {
@@ -150,31 +133,45 @@ static DB_STATUS AssignPolygonToNodeBatches(DatasetT *dataset, SpatialObjectT* p
             workersToSendPolygonTo[workerId] = true;
         }
     }
-
     // add polygon to the batches of the workers that need to receive it
     for (uint32_t i=0; i < g_world_size; i++) {
         if(workersToSendPolygonTo[i]) {
+            // add polygon copy to batch
             batchPerWorker[i].emplace_back(polygon);
-
             // if the batch size exceeds maxbatchsize, send the message
             if (batchPerWorker[i].size() >= batchSize) {
-                ret = SendPolygonBatchMessage(batchPerWorker[i], batchPerWorker[i].size());
-                if (ret != ERR_OK) {
-                    LOG_ERR("Error sending polygon batch message.", ERR_COMM_SEND_MESSAGE);
-                    return ERR_COMM_SEND_MESSAGE;
+                if (i != MASTER_RANK) {
+                    // belongs to other node, send to other node
+                    ret = SendPolygonBatchMessage(batchPerWorker[i], batchPerWorker[i].size(), i);
+                    if (ret != ERR_OK) {
+                        LOG_ERR("Error sending polygon batch message.", ERR_COMM_SEND_MESSAGE);
+                        return ERR_COMM_SEND_MESSAGE;
+                    }
+                } else {
+                    // belongs to master, save batch locally
+                    SavePartitioningBatch();
                 }
-                // // free batch memory and reset
-                ClearPolygonBatch(batchPerWorker[i], batchPerWorker[i].size());
+                // // free batch memory
+                batchPerWorker[i].clear();
             }
         }
     }
-
     return ERR_OK;
 }
 
-DB_STATUS PerformPartitioningBinaryFile(DatasetT *dataset, uint32_t maxbatchSize){
+static void InitializeBatches(std::unordered_map<WORKER_ID, std::vector<SpatialObjectT>> &batchPerWorker, uint32_t maxBatchSize){
+    for (WORKER_ID i = 0; i < g_world_size; i++) {
+        std::vector<SpatialObjectT> batch;
+        batch.reserve(maxBatchSize);
+        batchPerWorker[i] = batch;
+    }
+}
+
+DB_STATUS PerformPartitioningBinaryFile(DatasetT *dataset, uint32_t maxBatchSize){
     uint32_t lineCounter = 0;
     DB_STATUS ret = ERR_OK;
+    // map: worker -> batch
+    std::unordered_map<WORKER_ID, std::vector<SpatialObjectT>> batchPerWorker;
     
     // open the dataset binary file
     std::ifstream fin(dataset->filePath, std::fstream::in | std::ios_base::binary);
@@ -186,45 +183,44 @@ DB_STATUS PerformPartitioningBinaryFile(DatasetT *dataset, uint32_t maxbatchSize
     //read total polygon count from binary geometry file
 	fin.read((char*) &dataset->totalObjects, sizeof(uint32_t));
 
-    // map: worker -> batch
-    std::unordered_map<WORKER_ID, std::vector<SpatialObjectT*>> batchPerWorker;
     // initialize batches
-    for (WORKER_ID i = 0; i < g_world_size; i++) {
-        std::vector<SpatialObjectT*> batch;
-        batch.reserve(maxbatchSize);
-        batchPerWorker[i] = batch;
-    }
+    InitializeBatches(batchPerWorker, maxBatchSize);
     
     // loop polygons
     while (lineCounter < dataset->totalObjects) {
         // init new polygon in batch
-        SpatialObjectT *polygonPtr = new SpatialObjectT;
+        SpatialObjectT polygon;
         // read next polygon
-        ReadNextPolygonBinary(&fin, polygonPtr);
+        ReadNextPolygonBinary(fin, polygon);
 
         // assign to appropriate batch (and send if it is filled)
-        ret = AssignPolygonToNodeBatches(dataset, polygonPtr, batchPerWorker, maxbatchSize);
+        ret = AssignPolygonToNodeBatches(dataset, polygon, batchPerWorker, maxBatchSize);
         if (ret != ERR_OK) {
             LOG_ERR("Error assigning polygon to node.", ERR_PARTITIONING);
             return ERR_PARTITIONING;
         }
-        printf("Done with object %d / %d\n", lineCounter, dataset->totalObjects);
+        // printf("Done with object %d / %d\n", lineCounter, dataset->totalObjects);
         lineCounter++;
     }
     fin.close();
 
     // send the remaining unfulfilled batches
-    for(uint32_t i=0; i<g_world_size; i++) {
+    for (uint32_t i = 0; i < g_world_size; i++) {
         if (batchPerWorker[i].size() > 0) {
-            ret = SendPolygonBatchMessage(batchPerWorker[i], batchPerWorker[i].size());
-            if (ret != ERR_OK) {
-                LOG_ERR("Error sending polygon batch message.", ERR_COMM_SEND_MESSAGE);
-                return ERR_COMM_SEND_MESSAGE;
+            if (i != MASTER_RANK) {
+                // belongs to other node, send to other node
+                ret = SendPolygonBatchMessage(batchPerWorker[i], batchPerWorker[i].size(), i);
+                if (ret != ERR_OK) {
+                    LOG_ERR("Error sending polygon batch message.", ERR_COMM_SEND_MESSAGE);
+                    return ERR_COMM_SEND_MESSAGE;
+                }
+            } else {
+                // belongs to master, save batch locally
+                SavePartitioningBatch();
             }
-            // // free memory and clear
-            ClearPolygonBatch(batchPerWorker[i], batchPerWorker[i].size());
+            // free batch memory
+            batchPerWorker[i].clear();
         }
     }
-
     return ret;
 }

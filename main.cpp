@@ -25,10 +25,26 @@ DB_STATUS PerformConfiguredOptions(UserConfigurationT *config){
         g_global_index.partitionsPerDimension = config->numberOfPartitions;
         g_local_index.partitionsPerDimension = config->numberOfPartitions;
         for (uint32_t i=0; i<g_global_index.datasetCount; i++) {
+            // printf("Partitioning dataset %s\n", g_global_index.datasets[i]->fileName.c_str());
             ret = PerformPartitioningBinaryFile(g_global_index.datasets[i], config->batchSize);
             if (ret != ERR_OK) {
                 LOG_ERR("Error. Partitioning failed.", ERR_PARTITIONING);
                 return ret;
+            }
+        }
+    }
+
+
+
+    // tasks finished, send termination messsage
+    for (uint32_t i=0; i<g_world_size; i++) {
+        if (i != MASTER_RANK) {
+            // printf("Master sending termination ping to node %d\n.", i);
+            // then send partitioning termination message
+            ret = SendPingMessage(COMM_STOP_LISTENING, i);
+            if (ret != ERR_OK) {
+                LOG_ERR("Error sending stop listening message.", ERR_COMM_SEND_MESSAGE);
+                return ERR_COMM_SEND_MESSAGE;
             }
         }
     }
@@ -131,8 +147,8 @@ DB_STATUS ParseConfiguration(int argc, char **argv, UserConfigurationT *config) 
     // last 2 (or 1) arguments have to be the datasets
     std::string argument1(argv[argc-2]);
     std::string argument2(argv[argc-1]);
-    printf("%s\n", argument1.c_str());
-    printf("%s\n", argument2.c_str());
+    // printf("%s\n", argument1.c_str());
+    // printf("%s\n", argument2.c_str());
     return VerifyConfiguration(config, &argument1, &argument2);
 }
 
@@ -177,7 +193,10 @@ int main(int argc, char **argv)
     } else {
         // Workers go straight to listening/waiting for messages
         DB_STATUS ret = ListenForMessages();
-        // printf("Node %d done.\n", g_node_rank);
+        if (ret != ERR_OK) {
+            LOG_ERR("Failed when listening for messages.", ERR_COMM_RECV_MESSAGE);
+            goto EXIT_SAFELY;
+        }
     }
 
     
@@ -188,9 +207,9 @@ EXIT_SAFELY:
     // Barrier before termination
     MPI_Barrier(MPI_COMM_WORLD);
 
-
     // Finalize the MPI environment.
     MPI_Finalize();
+    printf("Node %d successfully terminated\n", g_node_rank);
 
     return 0;
 }

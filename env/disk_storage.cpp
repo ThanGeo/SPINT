@@ -104,3 +104,15 @@ DB_STATUS InitializeClusterDiskIndex(uint nodeRank, DiskIndexT *diskIndex){
 
     return ERR_OK;
 }
+
+
+ DB_STATUS SavePartitioningBatch() {
+    if (g_node_rank == MASTER_RANK) {
+        // master
+    } else {
+        // worker
+
+    }
+
+    return ERR_OK;
+ }
