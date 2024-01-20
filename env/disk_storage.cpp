@@ -56,9 +56,37 @@ DB_STATUS InitializeSingleMachineDiskIndex(DiskIndexT *diskIndex){
     return ERR_OK;
 }
 
+DB_STATUS ResetFile(const char* filePath) {
+    printf("Node %d reseting file %s\n", g_node_rank, filePath);
+    std::ofstream fout(filePath, std::fstream::out | std::ios_base::binary);
+    if(!fout.is_open()){
+        LOG_ERR("Error creating file on disk.", ERR_CREATE_FILE);
+        return ERR_CREATE_FILE;
+    }
+    fout.close();
+    return ERR_OK;
+
+}    
+DB_STATUS InitializeFile(const char* filePath) {
+    // if it exists, leave it be
+    std::ifstream fin(filePath, std::fstream::in | std::ios_base::binary);
+    if (fin.is_open()){
+        fin.close();
+        return ERR_OK;
+    }
+    // else, create empty file 
+    std::ofstream fout(filePath, std::fstream::out | std::ios_base::binary);
+    if(!fout.is_open()){
+        LOG_ERR("Error creating file on disk.", ERR_CREATE_FILE);
+        return ERR_CREATE_FILE;
+    }
+    fout.close();
+    return ERR_OK;
+}
+
 DB_STATUS InitializeClusterDiskIndex(uint nodeRank, DiskIndexT *diskIndex){
     /* --- REMOVE THIS? ---*/
-    // todo: temp, change for cluster or take as input
+    // todo: temp, change for cluster or take as input, because we might need to save on SSD or smth
     std::string clusterPathToNodeData = "node_data/cluster/node_" + std::to_string(nodeRank) + "_data/";
     std::string spatialDir = clusterPathToNodeData + "spatial/";
 
@@ -106,13 +134,20 @@ DB_STATUS InitializeClusterDiskIndex(uint nodeRank, DiskIndexT *diskIndex){
 }
 
 
- DB_STATUS SavePartitioningBatch() {
-    if (g_node_rank == MASTER_RANK) {
-        // master
-    } else {
-        // worker
-
-    }
+ DB_STATUS SavePartitioningBatch(std::vector<SpatialObjectT> &batch, uint32_t batchSize) {
+    
+    
 
     return ERR_OK;
  }
+
+DB_STATUS PartitionFileReset() {
+    // initialize master's partition files
+    for(uint32_t i=0; i<g_local_index.datasetCount; i++) {
+        DB_STATUS ret = ResetFile(g_local_index.datasets[i]->partitionFilepath.c_str());
+        if (ret != ERR_OK) {
+            return ret;
+        }
+    }
+    return ERR_OK;
+}

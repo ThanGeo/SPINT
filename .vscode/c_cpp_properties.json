@@ -4,12 +4,10 @@
             "name": "Linux",
             "includePath": [
                 "${workspaceFolder}/**",
-                "/usr/include/x86_64-linux-gnu/mpich",
-                "${workspaceFolder}",
-                "${workspaceFolder}"
+                "/usr/include/x86_64-linux-gnu/mpich"
             ],
             "defines": [],
-            "compilerPath": "/usr/bin/g++",
+            "compilerPath": "/usr/bin/mpicxx.mpich",
             "cStandard": "c17",
             "cppStandard": "c++14",
             "intelliSenseMode": "linux-clang-x64",

@@ -17,3 +17,13 @@ void PrintPolygon(SpatialObjectT *polygon)
     printf("\n");
     printf("MBR: (%f,%f),(%f,%f)\n", polygon->mbr.minP.x, polygon->mbr.minP.y, polygon->mbr.maxP.x, polygon->mbr.maxP.y);
 }
+
+void PrintDataset(DatasetT *dataset)
+{
+    printf("Dataset with code %d: \n", dataset->code);
+    printf("    shortcode: %s \n", dataset->shortCode.c_str());
+    printf("    filename: %s \n", dataset->fileName.c_str());
+    printf("    filepath: %s \n", dataset->filePath.c_str());
+    printf("    partition filepath: %s \n", dataset->partitionFilepath.c_str());
+    printf("    datatype: %d\n", dataset->dataType);
+}

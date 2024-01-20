@@ -1,9 +1,9 @@
 #include "dataset_info.h"
 
 std::unordered_map<std::string, DatasetCodeE> g_filenameToCodeMap = {
-	{"T1NA_fixed_binary.dat", TIGER},
-	{"T2NA_fixed_binary.dat", TIGER},
-	{"T3NA_fixed_binary.dat", TIGER},
+	{"T1NA_fixed_binary.dat", T1NA},
+	{"T2NA_fixed_binary.dat", T2NA},
+	{"T3NA_fixed_binary.dat", T3NA},
 	{"O5_Africa_fixed.dat", OSM_AF},
 	{"O6_Africa_fixed.dat", OSM_AF},
 	{"O5_Asia_fixed.dat", OSM_AS},
@@ -18,10 +18,48 @@ std::unordered_map<std::string, DatasetCodeE> g_filenameToCodeMap = {
 	{"O6_SouthAmerica_fixed.dat", OSM_SA},
 };
 
+std::unordered_map<std::string, std::string> g_shortCodeToFileName = {
+	{"T1NA","T1NA_fixed_binary.dat"},
+	{"T2NA","T2NA_fixed_binary.dat"},
+	{"T3NA","T3NA_fixed_binary.dat"},
+	{"O5AF","O5_Africa_fixed.dat"},
+	{"O6AF","O6_Africa_fixed.dat"},
+	{"O5AS","O5_Asia_fixed.dat"},
+	{"O6AS","O6_Asia_fixed.dat"},
+	{"O5EU","O5_Europe_fixed.dat"},
+	{"O6EU","O6_Europe_fixed.dat"},
+	{"O5NA","O5_NorthAmerica_fixed.dat"},
+	{"O6NA","O6_NorthAmerica_fixed.dat"},
+	{"O5OC","O5_Oceania_fixed.dat"},
+	{"O6OC","O6_Oceania_fixed.dat"},
+	{"O5SA","O5_Southamerica_fixed.dat"},
+	{"O6SA","O6_SouthAmerica_fixed.dat"},
+};
+
+std::unordered_map<std::string, std::string> g_fileNameToShortCode = {
+	{"T1NA_fixed_binary.dat","T1NA"},
+	{"T2NA_fixed_binary.dat","T2NA"},
+	{"T3NA_fixed_binary.dat","T3NA"},
+	{"O5_Africa_fixed.dat","O5AF"},
+	{"O6_Africa_fixed.dat","O6AF"},
+	{"O5_Asia_fixed.dat","O5AS"},
+	{"O6_Asia_fixed.dat","O6AS"},
+	{"O5_Europe_fixed.dat","O5EU"},
+	{"O6_Europe_fixed.dat","O6EU"},
+	{"O5_NorthAmerica_fixed.dat","O5NA"},
+	{"O6_NorthAmerica_fixed.dat","O6NA"},
+	{"O5_Oceania_fixed.dat","O5OC",},
+	{"O6_Oceania_fixed.dat","O6OC"},
+	{"O5_Southamerica_fixed.dat","O5SA"},
+	{"O6_SouthAmerica_fixed.dat","O6SA",},
+};
+
 //fixed universal coordinates per data set 
 static bool SetHardcodedDatasetMBR(DatasetT *dataset){
 	switch(dataset->code){
-		case TIGER:
+		case T1NA:
+		case T2NA:
+		case T3NA:
 			//TIGER DATASET, SET FIXED COORDINATES OF TIGER NORTH AMERICA low48
 			// universalMinX = -124.849;
 		    // universalMinY = 24.5214;
@@ -86,6 +124,23 @@ static bool SetHardcodedDatasetMBR(DatasetT *dataset){
     return false;
 }
 
+DB_STATUS GetDatasetCodeFromShortcode(std::string shortCode, DatasetCodeE &datasetCode){
+	std::string fileName;
+	if (auto it = g_shortCodeToFileName.find(shortCode); it != g_shortCodeToFileName.end()){
+		fileName = it->second;
+	}else{
+		LOG_ERR("shortcode doenst exist in g_shortCodeToFileName", ERR_KEY_DOESNT_EXIST);
+		return ERR_KEY_DOESNT_EXIST;
+	}
+	if (auto it = g_filenameToCodeMap.find(fileName); it != g_filenameToCodeMap.end()){
+		datasetCode = it->second;
+	}else {
+		LOG_ERR("filename doenst exist in g_filenameToCodeMap", ERR_KEY_DOESNT_EXIST);
+		return ERR_KEY_DOESNT_EXIST;
+	}
+	return ERR_OK;
+}
+
 DB_STATUS CalculateDatasetMBR(DatasetT *dataset) {
 	// TODO
 	LOG_ERR("TODO: Calculate Dataset MBR remains to be implemented.", ERR_FEATURE_TODO);
@@ -103,12 +158,18 @@ static void GenerateDatasetNameAndCode(DatasetT *dataset) {
 	std::stringstream ss(dataset->filePath);
 	std::string filename;
 	// get filename
-	while(std::getline(ss, filename, dirDelimiter))
-	{
-		// seglist.push_back(segment);
-	}
+	while(std::getline(ss, filename, dirDelimiter));
 	// after the end of loop it is stored in filename var
 	dataset->fileName = filename;
+	printf("filename: %s\n", filename.c_str());
+
+	// keep the file name short code
+	ss.str("");
+	ss.clear();
+	ss.str(filename);
+	std::string token;
+	std::getline(ss, token, '_');
+	dataset->shortCode = token;
 
 	// get the code if it exists
 	if (auto it = g_filenameToCodeMap.find(filename); it != g_filenameToCodeMap.end()){
@@ -118,7 +179,60 @@ static void GenerateDatasetNameAndCode(DatasetT *dataset) {
 	dataset->code = NONE;
 }
 
-DB_STATUS SetupDatasetInfo(std::string &pathToDataset, GlobalIndexT &globalIndex){
+std::string BuildPartitionFilepathsSingleMachine(std::string &shortcode, WORKER_ID forWorkerId) {
+	// generate the partitioned file name and path
+    std::string partitionedFilename(shortcode);
+	std::string partitionedFilePath;
+    partitionedFilename += "_" + std::to_string(forWorkerId) + "_partitioned_" + std::to_string(g_global_index.partitionsPerDimension) + ".dat";
+	partitionedFilePath = g_disk_index.mainNodeDataDir + partitionedFilename;
+	// DB_STATUS ret = InitializeFile(partitionedFilePath.c_str());
+	// if (ret != ERR_OK) {
+	// 	LOG_ERR("Failed to initialize partitioned data file.", ERR_CREATE_FILE);
+	// 	return ERR_COMM_SEND_MESSAGE;
+	// }
+	// set partitioned file path mapping  TODO
+	// g_disk_index.partitionedDataFilepathsMap[dataset->code] = partitionedFilePath;
+
+	return partitionedFilePath;
+}
+
+std::string BuildPartitionFilepathsCluster(std::string &shortcode) {
+	return "ERR_FEATURE_TODO";
+}
+
+/* send the dataset name shortcode to the workers to build their paths */
+static DB_STATUS DistributeDatasetInfo(DatasetT *dataset){
+	DB_STATUS ret = ERR_OK;
+	/*  Message format: concatenated strings delimited by '|'*/
+	/*
+	 *	shortCode|filename|partition filepath
+	*/
+	std::string partitionFilePath;
+	for(uint32_t i=0; i<g_world_size; i++) {
+		// first, set partition data filepaths
+		if (g_disk_index.type == DISK_SINGLE_MACHINE) {
+			partitionFilePath = BuildPartitionFilepathsSingleMachine(dataset->shortCode, i);
+		}else {
+			partitionFilePath = BuildPartitionFilepathsCluster(dataset->shortCode);
+		}
+		// send
+		if (i != MASTER_RANK) {
+			std::string message = dataset->shortCode + "|" + dataset->fileName + "|" + partitionFilePath;
+			// send shortCode to worker
+			ret = SendStringMsgWithTagToWorker(message, i, COMM_DATASET_INFO);
+			if (ret != ERR_OK) {
+				LOG_ERR("Failed to send partitioned filepath msg.", ERR_COMM_SEND_MESSAGE);
+				return ERR_COMM_SEND_MESSAGE;
+			}
+		}
+	}
+	// save local path 
+	dataset->partitionFilepath = BuildPartitionFilepathsSingleMachine(dataset->shortCode, MASTER_RANK);
+	return ret;
+}
+
+DB_STATUS SetupDatasetInfo(std::string &pathToDataset){
+	DB_STATUS ret = ERR_OK;
 	DatasetT *dataset = new DatasetT;	//todo: remember to free memory if reusable/resets
 	dataset->filePath = pathToDataset;
 	// get dataset code
@@ -127,7 +241,7 @@ DB_STATUS SetupDatasetInfo(std::string &pathToDataset, GlobalIndexT &globalIndex
 	bool unknownDatasetFlag = SetHardcodedDatasetMBR(dataset);
 	// if yes, return
 	if (unknownDatasetFlag) {
-		DB_STATUS ret = CalculateDatasetMBR(dataset);
+		ret = CalculateDatasetMBR(dataset);
 		if (ret != ERR_OK) {
 			LOG_ERR("Error calculating dataset MBR.", ret);
 		}
@@ -136,8 +250,18 @@ DB_STATUS SetupDatasetInfo(std::string &pathToDataset, GlobalIndexT &globalIndex
 	dataset->spanX = dataset->mbr.maxP.x - dataset->mbr.minP.x;
 	dataset->spanY = dataset->mbr.maxP.y - dataset->mbr.minP.y;
 	// add to global index
-	globalIndex.datasetCount += 1;
-	globalIndex.datasets.emplace_back(dataset);
+	ret = DistributeDatasetInfo(dataset);
+	if (ret != ERR_OK) {
+		LOG_ERR("Error sending dataset shortcode.", ret);
+	}
+
+	// store to local index and disk index
+	g_local_index.datasetCount += 1;
+	g_local_index.datasets.emplace_back(dataset);
+
+	g_disk_index.datasetMap[dataset->code] = dataset;
+	PrintDataset(dataset);
+
 	return ERR_OK;
 }
 

@@ -3,7 +3,25 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "test1",
+            "name": "mpicc - Build and debug active file",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "/usr/bin/mpirun.mpich",
+            "args": [
+                "-np","2",
+                "${workspaceFolder}/program",
+                "-P",
+                "-b","10000",
+                "-j",
+                "/home/thanasis/Desktop/PhD/data_files/TIGER/binary/T1NA_fixed_binary.dat",
+                "/home/thanasis/Desktop/PhD/data_files/TIGER/binary/T2NA_fixed_binary.dat"
+            ],
+            "cwd": "${workspaceFolder}",
+            "MIMode": "gdb",
+            "preLaunchTask": "build script"
+        },
+        {
+            "name": "Attach",
             "type": "cppdbg",
             "request": "attach",
             "processId": "${command:pickProcess}",
@@ -16,8 +34,8 @@
                     "ignoreFailures": true
                 }
             ],
-            "preLaunchTask": "mpi build",
-            "miDebuggerPath": "/usr/bin/gdb"
+            // "miDebuggerPath": "/usr/bin/gdb"
         }
+    
     ]
 }

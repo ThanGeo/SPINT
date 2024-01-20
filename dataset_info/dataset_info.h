@@ -8,6 +8,8 @@
 //      to avoid rounding errors
 #define MARGIN_PERCENTAGE 0.001
 
-DB_STATUS SetupDatasetInfo(std::string &pathToDataset, GlobalIndexT &GlobalIndex);
+extern DB_STATUS SetupDatasetInfo(std::string &pathToDataset);
+
+extern DB_STATUS GetDatasetCodeFromShortcode(std::string shortCod, DatasetCodeE &datasetCode);
 
 #endif

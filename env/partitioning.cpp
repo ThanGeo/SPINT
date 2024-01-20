@@ -1,8 +1,5 @@
 #include "partitioning.h"
 
-GlobalIndexT g_global_index;
-LocalIndexT g_local_index;
-
 DB_STATUS AddPartitionToGlobalIndex(PartitionT **partition){
     if (auto it = g_global_index.activePartitions.find((*partition)->id); it != g_global_index.activePartitions.end()){
         return ERR_DUPLICATE_PARTITION;
@@ -142,14 +139,14 @@ static DB_STATUS AssignPolygonToNodeBatches(DatasetT *dataset, SpatialObjectT &p
             if (batchPerWorker[i].size() >= batchSize) {
                 if (i != MASTER_RANK) {
                     // belongs to other node, send to other node
-                    ret = SendPolygonBatchMessage(batchPerWorker[i], batchPerWorker[i].size(), i);
+                    ret = SendPolygonBatchMsg(batchPerWorker[i], batchPerWorker[i].size(), i);
                     if (ret != ERR_OK) {
                         LOG_ERR("Error sending polygon batch message.", ERR_COMM_SEND_MESSAGE);
                         return ERR_COMM_SEND_MESSAGE;
                     }
                 } else {
                     // belongs to master, save batch locally
-                    SavePartitioningBatch();
+                    SavePartitioningBatch(batchPerWorker[i], batchPerWorker[i].size());
                 }
                 // // free batch memory
                 batchPerWorker[i].clear();
@@ -209,14 +206,14 @@ DB_STATUS PerformPartitioningBinaryFile(DatasetT *dataset, uint32_t maxBatchSize
         if (batchPerWorker[i].size() > 0) {
             if (i != MASTER_RANK) {
                 // belongs to other node, send to other node
-                ret = SendPolygonBatchMessage(batchPerWorker[i], batchPerWorker[i].size(), i);
+                ret = SendPolygonBatchMsg(batchPerWorker[i], batchPerWorker[i].size(), i);
                 if (ret != ERR_OK) {
                     LOG_ERR("Error sending polygon batch message.", ERR_COMM_SEND_MESSAGE);
                     return ERR_COMM_SEND_MESSAGE;
                 }
             } else {
                 // belongs to master, save batch locally
-                SavePartitioningBatch();
+                SavePartitioningBatch(batchPerWorker[i], batchPerWorker[i].size());
             }
             // free batch memory
             batchPerWorker[i].clear();

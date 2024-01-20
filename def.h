@@ -22,7 +22,8 @@ typedef enum DB_STATUS{
     ERR_DATASET_INFO = DB_BASE + 11,
     // directory I/O errors
     ERR_DIR = DB_BASE + 100,
-    ERR_OPEN_FILE =  DB_BASE + 101,
+    ERR_CREATE_FILE =  DB_BASE,
+    ERR_OPEN_FILE =  DB_BASE,
     // partitioning errors
     ERR_PARTITIONING = DB_BASE + 200,
     ERR_PARTITION_NOT_CREATED = DB_BASE + 201,
@@ -30,6 +31,11 @@ typedef enum DB_STATUS{
     // communication errors
     ERR_COMM_SEND_MESSAGE = DB_BASE + 300,
     ERR_COMM_RECV_MESSAGE,
+    // forbidden action errors
+    ERR_FB_BAD_SOURCE = DB_BASE + 400,
+    ERR_FB_BAD_DEST,
+    // data structure errors
+    ERR_KEY_DOESNT_EXIST = DB_BASE + 500,
 
 }DB_STATUS;
 
@@ -68,11 +74,13 @@ typedef struct SpatialObject
 
 /* DATASET */
 
-typedef enum DatasetCode{
+typedef enum{
     // UNKOWN DATASET
     NONE = 0,
     // TIGER
-    TIGER = 10,
+    T1NA = 10,
+    T2NA,
+    T3NA,
     // OSM per continent
     OSM_AF = 20,
     OSM_AS,
@@ -85,9 +93,11 @@ typedef enum DatasetCode{
 typedef struct Dataset
 {
     DatasetCodeE code;
+    std::string shortCode;
     SpatialDataTypeE dataType;
     std::string filePath;
     std::string fileName;
+    std::string partitionFilepath;
     uint32_t totalObjects = 0;
     MbrT mbr;
     double spanX,spanY;
@@ -106,4 +116,5 @@ typedef struct Partition
 
 // PRINTERS
 extern void PrintPolygon(SpatialObjectT *polygon);
+extern void PrintDataset(DatasetT *dataset);
 #endif
